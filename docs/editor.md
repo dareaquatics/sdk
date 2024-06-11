@@ -168,10 +168,9 @@ Check the log panel at the bottom of the application for detailed error messages
 - `pillow`
 
 ### Commands
-- **Clone Repository**: `git clone <repo_url>`
+- **Clone Repository**: `git clone <https://github.com/dareaquatics/sdk>`
 - **Install Dependencies**: `pip install -r requirements.txt`
-- **Run Application**: `python3 script.py`
+- **Run Application**: `python3 editor.py`
 
 ---
 
-For further assistance, refer to the detailed logs or contact the support team.
