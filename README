@@ -1,4 +1,5 @@
-### sdk
+sdk
+
 Python files assisting in the development of [dareaquatics/dare-website](https://github.com/dareaquatics/dare-website)
 
 Documentation for each app is provided in the /docs/ folder.
