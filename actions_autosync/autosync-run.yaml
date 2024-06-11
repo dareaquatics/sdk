@@ -1,0 +1,37 @@
+name: Update News
+
+# Add workflow_dispatch for manual trigger and schedule for periodic runs
+on:
+  workflow_dispatch:
+    inputs:
+      force_update:
+        description: 'Force update the news'
+        required: false
+        default: 'false'
+  schedule:
+    - cron: '0 */2 * * *'
+    - cron: '30 */2 * * *'
+
+jobs:
+  update-news:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install cloudscraper beautifulsoup4 gitpython colorlog tqdm
+
+      - name: Run the script
+        env:
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          python autosync.py
