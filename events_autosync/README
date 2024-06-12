@@ -1,3 +1,1 @@
-WIP
-https://www.gomotionapp.com/team/cadas/page/home
-</div><div class="CMSComponent CMSComponentUpcomingEvents Flex1 Component_Id171138"><h2 class="ComponentHeader">Upcoming Events</h2><div class="UpcomingEvents" ui-type="UpcomingEvents" comp-id="171138" ></div></div></div>
+High-level Python script that pulls data from a .ics file and converts it into human-readable HTML.
