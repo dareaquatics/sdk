@@ -1,6 +1,7 @@
 # -----------------------------------------------------------------------------------------------------------------------
-# MODIFIED VERSION OF https://github.com/luryann/sync/blob/main/autosync.py DESIGNED FOR GITHUB ACTIONS WORKFLOWS
+# MODIFIED VERSION OF https://github.com/luryann/sync/blob/main/autosync.py DESIGNED FOR GITHUB ACTIONS WORKFLOWS        
 # -----------------------------------------------------------------------------------------------------------------------
+
 import os
 import shutil
 import platform
@@ -202,29 +203,18 @@ def fetch_news():
                 continue
 
             try:
-                title = article.find('h4').text.strip() if article.find('h4') else 'No Title'
-                logging.debug(f"Processing article: {title}")
-                date_element = article.find('span', class_='DateStr')
-                date_str = date_element.get('data') if date_element else None
-                summary = article.find('p').text.strip() if article.find('p') else 'No Summary'
-                author_element = article.find('span', class_='Author')
-                author = author_element.text.strip() if author_element else 'Unknown Author'
+                link_element = article.find('a', href=True)
+                article_url = f"https://www.gomotionapp.com{link_element['href']}" if link_element else None
 
-                if date_str:
-                    date_obj = datetime.utcfromtimestamp(int(date_str) / 1000)
-                    formatted_date = date_obj.strftime('%B %d, %Y')
+                if article_url:
+                    article_details = fetch_article_content(article_url)
+                    if article_details:
+                        news_items.append(article_details)
                 else:
-                    logging.warning(f"Date not found for article with title: {title}")
-                    formatted_date = 'Unknown Date'
+                    logging.warning(f"Article URL not found for article with title: {title}")
 
-                news_items.append({
-                    'title': title,
-                    'date': formatted_date,
-                    'summary': summary,
-                    'author': author
-                })
             except Exception as e:
-                logging.error(f"Error parsing article: {e}")
+                logging.error(f"Error processing article: {e}")
 
         news_items.sort(
             key=lambda x: datetime.strptime(x['date'], '%B %d, %Y') if x['date'] != 'Unknown Date' else datetime.min, reverse=True)
@@ -237,9 +227,103 @@ def fetch_news():
         return []
 
 
+def fetch_article_content(url):
+    try:
+        scraper = cloudscraper.create_scraper()
+        response = scraper.get(url)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.content, 'html.parser')
+        news_item = soup.find('div', class_='NewsItem')
+        if not news_item:
+            logging.warning(f"NewsItem not found for article URL: {url}")
+            return None
+
+        title_element = news_item.find('h1')
+        date_element = news_item.find('span', class_='DateStr')
+        author_element = news_item.find('div', class_='Author').find('strong')
+        content_div = news_item.find('div', class_='Content')
+
+        title = title_element.get_text(strip=True) if title_element else 'No Title'
+        date_str = date_element.get('data') if date_element else None
+        author = author_element.get_text(strip=True) if author_element else 'Unknown Author'
+
+        if date_str:
+            date_obj = datetime.utcfromtimestamp(int(date_str) / 1000)
+            formatted_date = date_obj.strftime('%B %d, %Y')
+        else:
+            logging.warning(f"Date not found for article at URL: {url}")
+            formatted_date = 'Unknown Date'
+
+        if content_div:
+            # Extract the content and handle images
+            content_html = ''
+            for element in content_div:
+                if element.name == 'img':
+                    src = element["src"]
+                    if not src.startswith("http"):
+                        src = f"http://www.gomotionapp.com{src}"
+                    content_html += f'<a href="{src}" target="_blank">Click to see image</a>'
+                elif element.name and element.name.startswith('h'):
+                    # Flatten all heading tags to p tags with the same class for uniform size
+                    content_html += f'<p class="news-paragraph">{element.get_text(strip=True)}</p>'
+                elif element.name == 'a':
+                    href = element.get('href')
+                    text = element.get_text(strip=True)
+                    content_html += f'<a href="{href}" target="_blank">{text}</a>'
+                else:
+                    # Clean the element from unwanted attributes
+                    element.attrs = {}
+                    content_html += str(element)
+        else:
+            logging.warning(f"Content not found for article URL: {url}")
+            content_html = "Content not available."
+
+        return {
+            'title': title,
+            'date': formatted_date,
+            'summary': remove_duplicate_links(content_html),
+            'author': author
+        }
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error fetching article content from {url}: {e}")
+        return {
+            'title': 'Error fetching title',
+            'date': 'Unknown Date',
+            'summary': 'Error fetching content.',
+            'author': 'Unknown Author'
+        }
+    except Exception as e:
+        logging.error(f"Unexpected error fetching article content from {url}: {e}")
+        return {
+            'title': 'Error fetching title',
+            'date': 'Unknown Date',
+            'summary': 'Unexpected error fetching content.',
+            'author': 'Unknown Author'
+        }
+
+
+def remove_duplicate_links(text):
+    soup = BeautifulSoup(text, 'html.parser')
+    links = set()
+    for a in soup.find_all('a', href=True):
+        if a['href'] in links:
+            a.decompose()
+        else:
+            a.string = "Click here to be redirected to the link"
+            links.add(a['href'])
+    return str(soup)
+
+
 def convert_links_to_clickable(text):
-    url_pattern = re.compile(r'(https?://\S+)')
-    return url_pattern.sub(r'<a href="\1">\1</a>', text)
+    soup = BeautifulSoup(text, 'html.parser')
+    for a in soup.find_all('a', href=True):
+        if not a.string or a.string.strip() == "":
+            a.string = "Click here to be redirected to the link"
+        else:
+            a.string = "Click here to be redirected to the link"
+    return str(soup)
 
 
 def generate_html(news_items):
@@ -248,17 +332,63 @@ def generate_html(news_items):
 
     for item in news_items:
         summary_with_links = convert_links_to_clickable(item["summary"])
+        formatted_summary = format_summary(summary_with_links)
         news_html += f'''
         <div class="news-item">
             <h2 class="news-title"><strong>{item["title"]}</strong></h2>
             <p class="news-date">Author: {item["author"]}</p>
             <p class="news-date">Published on {item["date"]}</p>
-            <p class="news-content">{summary_with_links}</p>
+            <div class="news-content">{formatted_summary}</div>
         </div>
         '''
 
     logging.info("Successfully generated HTML.")
     return news_html
+
+
+def format_summary(summary):
+    try:
+        # Remove newlines and extra whitespace
+        summary = re.sub(r'\s*\n\s*', ' ', summary)
+        summary = re.sub(r'\s\s+', ' ', summary)
+
+        # Flatten any heading tags to paragraphs
+        summary = re.sub(r'<h[1-6][^>]*>', '<p class="news-paragraph">', summary)
+        summary = re.sub(r'</h[1-6]>', '</p>', summary)
+
+        # Remove any inline styles
+        summary = re.sub(r'style="[^"]*"', '', summary)
+
+        # Ensure all image links are prefixed with "www.gomotionapp.com"
+        summary = re.sub(r'src="/', 'src="http://www.gomotionapp.com/', summary)
+
+        # Convert newlines to <br> tags
+        summary = summary.replace('\n', '<br>')
+
+        # Convert numbered lists
+        summary = re.sub(r'(\d+)\. ', r'<li>\1. ', summary)
+        summary = re.sub(r'(<li>\d+\. [^<]+)<br>', r'\1</li>', summary)
+
+        # Convert bulleted lists
+        summary = re.sub(r'^\* ', r'<ul><li>', summary)
+        summary = re.sub(r'<br>\* ', r'</li><li>', summary)
+        summary = re.sub(r'(<li>[^<]+)<br>', r'\1</li>', summary)
+        summary = re.sub(r'(<li>[^<]+)$', r'\1</li></ul>', summary)
+
+        # Convert image links to "Click to see image" links
+        summary = re.sub(r'<img src="([^"]+)"[^>]*>', r'<a href="\1" target="_blank">Click to see image</a>', summary)
+
+        # Fix broken link formatting
+        summary = re.sub(r'<a href="([^"]+)">([^<]+)</a>', r'<a href="\1" target="_blank">\2</a>', summary)
+
+    except re.error as e:
+        logging.error(f"Regex error while formatting summary: {e}")
+        summary += "<br><em>Formatting error occurred. Displaying raw content.</em>"
+    except Exception as e:
+        logging.error(f"Unexpected error while formatting summary: {e}")
+        summary += "<br><em>Unexpected error occurred. Displaying raw content.</em>"
+
+    return summary
 
 
 def update_html_file(news_html):
@@ -308,7 +438,7 @@ def push_to_github():
                     pbar.set_postfix_str(message)
 
                 repo.git.add(NEWS_HTML_FILE)
-                repo.index.commit('Automation: Sync TeamUnify Events w/ GitHub')
+                repo.index.commit('automated commit: sync TeamUnify events')
                 pbar.update(100)
 
             origin = repo.remote(name='origin')
@@ -328,7 +458,6 @@ def push_to_github():
         logging.error(f"Git command error: {e}")
     except Exception as e:
         logging.error(f"Error pushing changes to GitHub: {e}")
-
 
 
 def main():
