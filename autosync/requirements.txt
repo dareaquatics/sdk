@@ -1,6 +1,6 @@
 requests==2.32.2
 beautifulsoup4==4.11.1
-gitpython==3.1.29
+gitpython==3.1.41
 cloudscraper==1.2.60
 colorlog==6.6.0
 tqdm==4.66.3
