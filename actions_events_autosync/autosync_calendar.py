@@ -1,3 +1,5 @@
+# autosync for calendar (calendar.html)
+
 import os
 import shutil
 import platform
@@ -11,8 +13,8 @@ from datetime import datetime
 import pytz
 
 # Constants
-GITHUB_REPO = 'https://github.com/dareaquatics/dare-website'
-ICS_URL = 'https://www.gomotionapp.com/rest/ics/system/5/Events.ics?key=l4eIgFXwqEbxbQz42YjRgg%3D%3D&enabled=false&tz=America%2FLos_Angeles'
+GITHUB_REPO = ' '
+ICS_URL = ' '
 GITHUB_TOKEN = os.getenv('PAT_TOKEN')
 REPO_NAME = 'dare-website'
 EVENTS_HTML_FILE = 'calendar.html'
@@ -208,24 +210,27 @@ def generate_html(event_items):
           <h2><strong>{item["title"]}</strong></h2>
           <p><b>Event Start:</b> {item["start"].strftime('%B %d, %Y')}</p>
           <p><b>Event End:</b> {item["end"].strftime('%B %d, %Y')}</p>
-          <p><b>Description:</b> Click the button below for more information.</p>
-          <a href="https://www.gomotionapp.com/team/cadas/page/events#/team-events/upcoming" target="_blank" rel="noopener noreferrer" class="btn btn-primary">More Info</a>
+          <br>
+          <p>Click the button below for more information.</p>
+          <a href="https://www.gomotionapp.com/team/cadas/controller/cms/admin/index?team=cadas#/calendar-team-events" target="_blank" rel="noopener noreferrer" class="btn btn-primary">More Details</a>
         </div>
-        <br><hr><br>
+        <br><br>
         '''
 
-        if item['start'] > current_date:
-            upcoming_events_html += event_html
-        else:
+        # Categorize based on event end date
+        if item['end'] < current_date:
             past_events_html += event_html
+        else:
+            upcoming_events_html += event_html
 
     # Create collapsible section for past events
     if past_events_html:
         past_events_html = f'''
-        <button type="button" class="collapsible">Past Events</button>
+        <button type="button" class="collapsible">Click for Past Events</button>
         <div class="content" style="display: none;">
           {past_events_html}
         </div>
+        <br>
         <script>
         var coll = document.getElementsByClassName("collapsible");
         for (var i = 0; i < coll.length; i++) {{
@@ -290,7 +295,7 @@ def push_to_github():
                     pbar.set_postfix_str(message)
 
                 repo.git.add(EVENTS_HTML_FILE)
-                repo.index.commit('automated commit: sync TeamUnify calendar')
+                repo.index.commit('automated commit: sync TeamUnify calendar [skip ci]')
                 pbar.update(100)
 
             with tqdm(total=100, desc='Pushing changes') as pbar:
