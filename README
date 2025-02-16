@@ -1,5 +1,7 @@
 sdk
 
+DEPRECIATED AS OF 2/16/2025
+
 High level Python applications assisting in the development of [dareaquatics/dare-website](https://github.com/dareaquatics/dare-website). 
 Built for Microsoft Windows 10 and 11 x64bit. GitHub Actions support is also included on select scripts. macOS and Linux support are UNTESTED.
 
